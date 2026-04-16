@@ -18,6 +18,12 @@
 - Criar um processo de gravação da imagem no dispositivo físico, incluindo backup da eMMC existente
 - Testar e, se necessário, adaptar o kernel Bootargs para o console serial `ttyS2` e DTB `rk322x-box.dtb`
 
+## O que a pesquisa web mostrou
+
+- Não há indicativo de suporte oficial Arch Linux ARM para RK322x/RK3228 na lista de boards ARMv7.
+- Não foram encontradas referências públicas claras a uma imagem Arch Linux ARM específica para `rk322x-box`.
+- Isso indica que a melhor fonte de kernel/DTB é o BSP Armbian/Rockchip existente no dispositivo ou um build customizado a partir da árvore Rockchip.
+
 ## Dependências técnicas
 
 - `bsdtar` para extrair o tarball Arch Linux ARM com xattrs desconhecidos
