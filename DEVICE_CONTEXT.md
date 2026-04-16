@@ -30,6 +30,9 @@ Este repositório documenta um TV box Rockchip RK322x com 1 GB de RAM e armazena
 - Device tree disponível em `/boot/dtb-4.4.194-rk322x`
   - Inclui `rk322x-box.dtb` e outras DTBs Rockchip
 - `boot.scr` e `boot.cmd` sugerem uso de U-Boot script de inicialização
+- `boot.cmd` contém um trigger maskrom via GPIO D25:
+  - se `gpio input D25` for 0, ele escreve o valor mágico `0xEF08A53C` em `0x110005c8` e faz `reset`
+  - isso é usado para entrar no modo Rockchip USB/maskrom
 - `cmdline` do kernel:
   - `root=UUID=213d2a8b-27c6-447e-8f51-38cdda32f4d3`
   - `console=ttyS2,115200n8`
