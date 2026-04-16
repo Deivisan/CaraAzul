@@ -32,3 +32,5 @@ Este repositório contém scripts e documentação para migração de um TV box 
 
 - O tarball contém extended headers com chaves desconhecidas (`LIBARCHIVE.xattr.security.SMACK64`) que exigem extração tolerante.
 - O boot no hardware RK322x depende de kernel/DTB compatíveis; o script gera apenas a camada de initramfs rootfs / boot script.
+- O workspace já extraiu o rootfs em `work/rootfs` e criou `work/boot/boot.cmd`, mas o kernel/DTB final ainda precisa ser obtido do BSP Armbian/Rockchip ou build customizado.
+- A pesquisa web não retornou uma imagem Arch Linux ARM pronta para RK322x; o caminho mais confiável é reaproveitar o BSP/Rockchip existente e testar no hardware.
