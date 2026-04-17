@@ -100,6 +100,7 @@ bash scripts/build-multitool-image.sh --base /caminho/Armbian_23.02.0-trunk_Rk32
 - `PLANO_CARAPRETA.md`
 - `DEVICE_CONTEXT.md`
 - `MULTITOOL_2022_COMPAT.md`
+- `docs/TROUBLESHOOTING_BLACKSCREEN.md`
 
 ---
 

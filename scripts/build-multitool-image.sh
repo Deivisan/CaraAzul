@@ -12,6 +12,35 @@ OUT_DIR="${REPO_ROOT}/images"
 BASE_IMG=""
 OUT_IMG="${OUT_DIR}/CaraAzul-rk322x-multitool2022-canary.img"
 
+find_root_partition() {
+  local loop_dev="$1"
+  local best_part=""
+  local best_size=0
+
+  for p in "${loop_dev}"p*; do
+    [[ -b "$p" ]] || continue
+    local fstype size
+    fstype="$(lsblk -no FSTYPE "$p" 2>/dev/null || true)"
+    size="$(lsblk -bno SIZE "$p" 2>/dev/null || echo 0)"
+    if [[ "$fstype" =~ ^(ext4|ext3|ext2)$ ]] && (( size > best_size )); then
+      best_size=$size
+      best_part="$p"
+    fi
+  done
+
+  if [[ -z "$best_part" ]]; then
+    # fallback clássico
+    if [[ -b "${loop_dev}p2" ]]; then
+      best_part="${loop_dev}p2"
+    elif [[ -b "${loop_dev}p1" ]]; then
+      best_part="${loop_dev}p1"
+    fi
+  fi
+
+  [[ -n "$best_part" ]] || return 1
+  printf '%s\n' "$best_part"
+}
+
 usage() {
   cat <<EOF
 Uso:
@@ -82,14 +111,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -b "${LOOP_DEV}p1" ]]; then
-  ROOT_PART="${LOOP_DEV}p1"
-elif [[ -b "${LOOP_DEV}p2" ]]; then
-  ROOT_PART="${LOOP_DEV}p2"
-else
+ROOT_PART="$(find_root_partition "${LOOP_DEV}")" || {
   echo "ERRO: não encontrei partição de root no loop (${LOOP_DEV})" >&2
   exit 1
-fi
+}
 
 echo "[3/7] Montando partição root da imagem base: ${ROOT_PART}"
 sudo mount "${ROOT_PART}" "${WORK_DIR}/mnt-base"
@@ -110,6 +135,9 @@ echo "[7/7] Validando imagem final..."
 file "${OUT_IMG}"
 fdisk -l "${OUT_IMG}" | sed -n '1,80p'
 sha256sum "${OUT_IMG}"
+
+echo "Imagem base usada: ${BASE_IMG}"
+echo "Partição root selecionada: ${ROOT_PART}"
 
 echo
 echo "Imagem pronta: ${OUT_IMG}"
