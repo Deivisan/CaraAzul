@@ -447,6 +447,128 @@ function validate_rootfs_layout() {
   echo "Validação OK: layout pronto para SD boot (root=${rootdev}, fs=${rootfstype})"
 }
 
+function install_observability_stack() {
+  local webhook_url="${1:-}"
+  local syslog_host="${2:-}"
+  local interval="${3:-2min}"
+
+  ensure_rootfs_ready
+
+  mkdir -p "${ROOTFS_DIR}/etc/caraazul" "${ROOTFS_DIR}/usr/local/sbin"
+
+  cat > "${ROOTFS_DIR}/etc/caraazul/telemetry.env" <<EOF
+LOG_SHIP_ENABLED=1
+LOG_SHIP_URL=${webhook_url}
+LOG_SYSLOG_HOST=${syslog_host}
+LOG_SYSLOG_PORT=514
+LOG_MAX_JOURNAL_LINES=200
+EOF
+
+  cat > "${ROOTFS_DIR}/usr/local/sbin/carazul-logship.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE="/etc/caraazul/telemetry.env"
+[[ -f "${ENV_FILE}" ]] && source "${ENV_FILE}"
+
+if [[ "${LOG_SHIP_ENABLED:-0}" != "1" ]]; then
+  exit 0
+fi
+
+HOST="$(hostname 2>/dev/null || echo unknown)"
+KERNEL="$(uname -r 2>/dev/null || echo unknown)"
+UPTIME="$(uptime -p 2>/dev/null || true)"
+IPV4="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $2":"$4}' | tr '\n' ';' || true)"
+DISK="$(df -h / 2>/dev/null | tail -n1 | awk '{print "root=" $3 "/" $2 "(" $5 ")"}' || true)"
+MEM="$(free -m 2>/dev/null | awk '/Mem:/ {print "mem=" $3 "MB/" $2 "MB"}' || true)"
+LINES="${LOG_MAX_JOURNAL_LINES:-200}"
+
+JOURNAL=""
+if command -v journalctl >/dev/null 2>&1; then
+  JOURNAL="$(journalctl -b -n "${LINES}" --no-pager 2>/dev/null | tail -c 12000 || true)"
+fi
+
+PAYLOAD="host=${HOST};kernel=${KERNEL};uptime=${UPTIME};ip=${IPV4};${DISK};${MEM}\n${JOURNAL}"
+
+if [[ -n "${LOG_SHIP_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
+  curl -fsS -m 12 -X POST --data-binary "${PAYLOAD}" "${LOG_SHIP_URL}" >/dev/null || true
+fi
+
+if [[ -n "${LOG_SYSLOG_HOST:-}" ]] && command -v logger >/dev/null 2>&1; then
+  logger -n "${LOG_SYSLOG_HOST}" -P "${LOG_SYSLOG_PORT:-514}" -t carazul "${PAYLOAD:0:900}"
+fi
+EOF
+  chmod +x "${ROOTFS_DIR}/usr/local/sbin/carazul-logship.sh"
+
+  cat > "${ROOTFS_DIR}/etc/systemd/system/carazul-logship.service" <<EOF
+[Unit]
+Description=CaraAzul telemetry shipper
+After=network-online.target systemd-networkd-wait-online.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/carazul-logship.sh
+EOF
+
+  cat > "${ROOTFS_DIR}/etc/systemd/system/carazul-logship.timer" <<EOF
+[Unit]
+Description=Periodic CaraAzul telemetry shipper
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=${interval}
+Unit=carazul-logship.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  mkdir -p "${ROOTFS_DIR}/etc/systemd/system/timers.target.wants"
+  ln -sf /etc/systemd/system/carazul-logship.timer \
+    "${ROOTFS_DIR}/etc/systemd/system/timers.target.wants/carazul-logship.timer"
+
+  echo "Observabilidade configurada (timer=${interval}). Ajuste endpoint em /etc/caraazul/telemetry.env"
+}
+
+function build_multitool_overlay() {
+  local output_dir="${1:-${WORK_DIR}/multitool-overlay}"
+  local rootdev="${2:-/dev/mmcblk0p2}"
+
+  ensure_rootfs_ready
+  rm -rf "${output_dir}"
+  mkdir -p "${output_dir}/archboot/dtb" "${output_dir}/extlinux"
+
+  cp -f "${ROOTFS_DIR}/boot/zImage" "${output_dir}/archboot/zImage"
+  cp -f "${ROOTFS_DIR}/boot/uInitrd" "${output_dir}/archboot/uInitrd"
+  cp -f "${ROOTFS_DIR}/boot/dtb/rk322x-box.dtb" "${output_dir}/archboot/dtb/rk322x-box.dtb"
+
+  cat > "${output_dir}/extlinux/append-archlinux.conf" <<EOF
+LABEL ArchLinuxARM-canary
+  LINUX /archboot/zImage
+  INITRD /archboot/uInitrd
+  FDT /archboot/dtb/rk322x-box.dtb
+  APPEND root=${rootdev} rootwait rootfstype=ext4 console=ttyS2,115200n8 console=tty1 loglevel=1 consoleblank=0
+EOF
+
+  cat > "${output_dir}/README.txt" <<EOF
+MULTITOOL OVERLAY (NÃO APLICA AUTOMATICAMENTE)
+
+1) Copie conteúdo de archboot/ para a partição FAT do SD multitool em /archboot
+2) Edite /extlinux/extlinux.conf no SD e APPEND o bloco de extlinux/append-archlinux.conf
+3) NÃO remova a entrada LABEL Multitool existente
+4) Garanta que o rootfs Arch esteja realmente em ${rootdev}
+
+Verificação rápida esperada no SD:
+- /archboot/zImage
+- /archboot/uInitrd
+- /archboot/dtb/rk322x-box.dtb
+- /extlinux/extlinux.conf com LABEL ArchLinuxARM-canary
+EOF
+
+  echo "Overlay multitool gerado em ${output_dir}"
+}
+
 function prepare_arch_minimal() {
   local rootdev="${1:-/dev/mmcblk0p2}"
   local rootfstype="${2:-ext4}"
@@ -465,6 +587,7 @@ function prepare_arch_minimal() {
 
   make_extlinux_conf "${rootdev}" "${rootfstype}" "ttyS2,115200n8" "${ROOTFS_DIR}/boot"
   configure_arch_minimal "ufrb" "desk@456." "carapreta-arch"
+  install_observability_stack
   validate_rootfs_layout "${rootdev}" "${rootfstype}"
 }
 
@@ -627,6 +750,11 @@ Commands:
                         defaults: kernels/rk322x-kernel-6.6.22.tar.gz and 6.6.22-current-rockchip
   configure-minimal [user] [password] [hostname]
                         Apply minimal Arch config (SSH, networkd, user, root password)
+  observability [webhook_url] [syslog_host] [interval]
+                        Enable telemetry shipping timer in rootfs (optional endpoint)
+                        interval default: 2min
+  build-multitool-overlay [out_dir] [rootdev]
+                        Generate ready-to-copy overlay files to inject Arch entry in Multitool extlinux
   prepare-arch-minimal [rootdev] [rootfstype] [bundle] [kver]
                         Full prep in work/rootfs for SD boot (extract + kernel bundle + boot + config + validate)
                         defaults: rootdev=/dev/mmcblk0p2 rootfstype=ext4
@@ -668,6 +796,12 @@ case "$1" in
     ;;
   configure-minimal)
     configure_arch_minimal "${2:-ufrb}" "${3:-desk@456.}" "${4:-carapreta-arch}"
+    ;;
+  observability)
+    install_observability_stack "${2:-}" "${3:-}" "${4:-2min}"
+    ;;
+  build-multitool-overlay)
+    build_multitool_overlay "${2:-${WORK_DIR}/multitool-overlay}" "${3:-/dev/mmcblk0p2}"
     ;;
   prepare-arch-minimal)
     prepare_arch_minimal "${2:-/dev/mmcblk0p2}" "${3:-ext4}" "${4:-${KERNEL_BUNDLE_DEFAULT}}" "${5:-${KERNEL_VERSION_DEFAULT}}"
