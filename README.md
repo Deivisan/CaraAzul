@@ -1,68 +1,78 @@
 # CaraAzul
 
-Repo público para pesquisa e desenvolvimento sobre TV box Rockchip RK322x (ARMv7 32-bit) com 1 GB de RAM.
+> **Missão:** ressuscitar TV Box RK322x antiga com **Arch Linux ARM funcional**, pipeline reproduzível e base moderna para desenvolvimento de agentes.
 
-## Objetivo
+Se os testes de boot em hardware real confirmarem estabilidade, este projeto vira uma referência prática e pública para uma classe de dispositivos considerada obsoleta.
 
-Documentar e melhorar o software do dispositivo:
-- RK322x / RK3228 family
-- Armbian 21.08.8 com kernel 4.4.194-rk322x
-- 1 GB RAM, armazenamento em eMMC/MMC
-- Uso como dispositivo multimídia, câmera e roteador
+## Estado atual (abril/2026)
 
-## Contexto inicial
+- ✅ Boot chain do SD Multitool preparada com entrada `ArchLinuxARM-canary`
+- ✅ Rootfs Arch ARM minimal preparado e validado
+- ✅ Kernel RK322x `6.6.22-current-rockchip` integrado (zImage + uInitrd + DTB + módulos)
+- ✅ Pré-configuração de acesso remoto (SSH + rede + usuário `ufrb`)
+- ✅ Stack de observabilidade inicial (timer + shipper para webhook/syslog)
+- 🔬 Fase atual: **testes de boot no hardware (carapreta)**
 
-O dispositivo é um TV box barato baseado em Rockchip RK322x, arquitetura ARMv7 32-bit.
+## Objetivo técnico
 
-Problemas atuais:
-- `bun` não é compatível porque binário oficial é x86_64
-- `node`/`npm` não estão instalados
-- Kernel antigo (4.4) e Armbian 21.08.8
-- `/var/log` por vezes em zram está cheio
+1. Bootar Arch Linux ARM de forma confiável no RK322x.
+2. Consolidar procedimento SD-first (canário) com rollback seguro.
+3. Migrar para eMMC somente após estabilidade comprovada.
+4. Entregar base pronta para toolchain ARMv7 (Rust/Zig) e workloads de agentes.
 
-## Pesquisa inicial
+## Contexto do hardware alvo
 
-- RK322x é uma série Rockchip usada em dispositivos baratos de multimídia e TV box.
-- O dispositivo já está rodando Armbian 21.08.8, mas o suporte a Arch Linux ARM para RK322x não é claro.
-- Arch Linux ARM lista vários dispositivos ARMv7, mas RK322x/RK3228 não aparecem explicitamente.
-- O principal bloqueio para `bun` é arquitetura: o box é `armv7l`, o `bun` oficial baixado era x86_64.
+- SoC: Rockchip RK322x (ARMv7 Cortex-A7)
+- RAM: ~1 GB
+- Armazenamento atual: eMMC (~7.2 GB) + SD Multitool
+- Sistema legado de origem: Armbian/Bullseye + kernel 4.4 legacy
 
-## Próximos passos
+Detalhes completos em: `DEVICE_CONTEXT.md`.
 
-- Verificar se roda melhor com Debian/Armbian atualizados ou com outra distro ARMv7 compatível.
-- Testar `nodejs`/`npm` via pacote Debian para desenvolvimento local.
-- Avaliar se há imagens Arch Linux ARM genéricas ou builds para Rockchip ARMv7.
-- Documentar hardware e configuração de boot.
+## Arquitetura da solução (resumo)
 
-## Contexto do dispositivo conectado
+- **Canário por SD (sem tocar eMMC inicialmente)**
+- Entrada de boot adicional no `extlinux.conf` do Multitool
+- Kernel/dtb/initrd do Arch em `/archboot` no SD
+- Rootfs Arch minimal preparado offline no workspace
+- Telemetria periódica para facilitar diagnóstico pós-boot
 
-O dispositivo já inicializa em Armbian (atual `Armbian 25.2.3 bullseye`) com kernel `4.4.194-rk322x`.
-- CPU: ARMv7 quad-core Cortex-A7
-- Memória: 962 MB
-- Armazenamento: 7,2 GB eMMC com rootfs único `/dev/mmcblk2p1`
-- Boot atual: U-Boot script em `/boot/boot.scr`
-- `/boot` está na partição raiz e contém `vmlinuz`, `uInitrd`, DTBs e `armbianEnv.txt`
-- Sistema já usa zram para `/var/log`
-- Espaço livre atual em eMMC: ~654 MB (91% usado)
+## Como preparar (workspace)
 
-A documentação de boot e o layout atual do sistema estão no arquivo `DEVICE_CONTEXT.md`.
+Script principal:
 
-## O que é necessário para trocar o sistema totalmente
+```bash
+bash scripts/prepare-arch-image.sh prepare-arch-minimal /dev/mmcblk0p2 ext4
+bash scripts/prepare-arch-image.sh build-multitool-overlay work/multitool-overlay /dev/mmcblk0p2
+bash scripts/prepare-arch-image.sh validate /dev/mmcblk0p2 ext4
+```
 
-1. Backup completo da eMMC antes de qualquer alteração.
-2. A imagem rootfs do Arch Linux ARM para `armv7l`.
-3. Kernel e DTB compatíveis com RK322x, ou um kernel customizado que suporte o hardware.
-4. Configuração de boot U-Boot adaptada para `root=/dev/mmcblk0p1` ou para o dispositivo `/dev/mmcblk2p1`.
-5. Método de instalação:
-   - preferível: regravar a eMMC a partir de um host via modo Rockchip USB (rkdeveloptool + loader)
-   - alternativa: montar o novo rootfs em outra partição ou cartão SD e ajustar boot para ele
-6. Espaço livre e armazenamento externo para preparar imagens, pois a eMMC atual está quase cheia.
+Documentos operacionais:
 
-## Versão atual e base do sistema
+- `GUIA_MULTITOOL_ARCH_RK322X.md`
+- `CHECKLIST_BOOT_ARCH_CANARIO.md`
+- `PLANO_CARAPRETA.md`
 
-O sistema atual mostra:
-- `Armbian 25.2.3 bullseye` no `/etc/os-release`
-- pacotes de suporte do RK322x em versão `21.08.8` (`armbian-bsp-cli-rk322x-box`, `linux-image-legacy-rk322x`, `linux-u-boot-rk322x-box-legacy`)
-- kernel `4.4.194-rk322x`, que é antigo e faz parte do ramo legacy Armbian para RK322x.
+## Credenciais de teste da imagem canário
 
-Isso significa que o dispositivo está rodando uma instalação Armbian baseada em Debian Bullseye, mas com BSP/kernel legado 21.08.x. Para mudar totalmente, o melhor é partir para uma instalação limpa em vez de tentar adaptar o sistema atual.
+- Usuário: `ufrb`
+- Senha: `desk@456.`
+- Root: habilitado (senha definida no preparo)
+
+> **Atenção:** credenciais de laboratório. Trocar imediatamente após validação de boot.
+
+## Artefatos grandes e limites do GitHub
+
+Este repositório **não versiona imagens `.img` grandes** por limite de tamanho no GitHub.
+
+Exemplo de artefato local (não commitado):
+- `images/ArchLinuxARM-rk322x-canary-6.6.22-minimal.img` (~3.0G)
+
+O que fica no Git:
+- scripts, documentação, checklist, plano, hashes e fluxo reproduzível.
+
+## Resultado esperado da fase de testes
+
+Se os boots canário passarem (rede, shell, reinício, logs), o projeto entra na fase de migração para eMMC.
+
+Isso pode transformar o CaraAzul em uma trilha prática para recuperar e modernizar RK322x com Arch Linux ARM — algo raro e de alto impacto para hardware legado.

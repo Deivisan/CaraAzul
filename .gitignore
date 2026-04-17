@@ -2,3 +2,6 @@
 /images/ArchLinuxARM-armv7-latest.tar.gz
 /images/ArchLinuxARM-armv7-latest.tar.gz.md5
 /images/ArchLinuxARM-armv7-latest.tar.gz.sig
+/images/*.img
+/images/*.img.xz
+/images/*.img.zst
