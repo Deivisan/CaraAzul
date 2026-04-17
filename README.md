@@ -1,5 +1,9 @@
 # CaraAzul 🔵
 
+<p align="center">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Archlinux-icon-crystal-64.svg" alt="Arch Linux Logo" width="88" />
+</p>
+
 ![Status](https://img.shields.io/badge/status-canary%20em%20teste-orange)
 ![Platform](https://img.shields.io/badge/platform-RK322x%20(ARMv7)-blue)
 ![Kernel](https://img.shields.io/badge/kernel-6.6.22--current--rockchip-1f6feb)
@@ -27,7 +31,7 @@ Se estabilizar em produção real, este repositório vira uma referência públi
 - ✅ Kernel RK322x `6.6.22-current-rockchip` integrado
 - ✅ Entrada `ArchLinuxARM-canary` adicionada no Multitool SD
 - ✅ SSH + networkd + observabilidade básica no rootfs
-- ⚠️ **eMMC flash com imagem genérica resultou em tela preta (em investigação técnica)**
+- ⚠️ **eMMC flash com imagem genérica resultou em tela preta (investigação ativa)**
 
 > **Fase atual:** testes de boot em hardware real (`carapreta`) com foco em robustez de bootchain.
 
@@ -35,19 +39,19 @@ Se estabilizar em produção real, este repositório vira uma referência públi
 
 ## 🧠 Diagnóstico crítico atual (tela preta após flash)
 
-Muito provável que o erro tenha sido **formato de imagem para eMMC**:
+Mais provável que o erro tenha sido **formato/layout de imagem para eMMC**:
 
-- A imagem `.img` gerada no workspace foi **rootfs-centric** (partição Linux + conteúdo),
-- mas o boot RK322x em eMMC normalmente exige cadeia completa específica de bootloader (idbloader/u-boot/trust/offsets corretos).
+- A imagem `.img` gerada no workspace foi **rootfs-centric** (partição Linux + conteúdo).
+- O boot RK322x em eMMC via Multitool costuma depender de uma imagem com layout/offsets de bootloader já válidos (cadeia Rockchip completa no disco).
 
 Resultado típico: gravação “sucesso” no Multitool, mas boot morto (sem vídeo/LED esperado).
 
-👉 Em outras palavras: **não foi falha de conceito do Arch**, foi falha de empacotamento de imagem para bootchain Rockchip no eMMC.
+👉 Em outras palavras: **não é falha de conceito do Arch**, é falha provável de empacotamento/layout da imagem para o bootchain Rockchip no eMMC.
 
 ### Próximo caminho correto
 
 1. Manter estratégia **SD canário** até boot estável.
-2. Gerar imagem **multitool-friendly para burn em eMMC**, baseada em layout de imagem RK322x válida.
+2. Gerar imagem **multitool-friendly para burn em eMMC**, baseada em imagem RK322x comprovadamente bootável.
 3. Só então repetir migração para eMMC.
 
 Detalhes em: `CHECKLIST_BOOT_ARCH_CANARIO.md` e `PLANO_CARAPRETA.md`.
@@ -75,6 +79,8 @@ Detalhes em: `CHECKLIST_BOOT_ARCH_CANARIO.md` e `PLANO_CARAPRETA.md`.
 - somente após estabilidade comprovada no SD
 - com rollback pronto
 
+Roadmap completo: **[`ROADMAP.md`](ROADMAP.md)**
+
 ---
 
 ## 🛠️ Setup rápido (workspace)
@@ -83,6 +89,8 @@ Detalhes em: `CHECKLIST_BOOT_ARCH_CANARIO.md` e `PLANO_CARAPRETA.md`.
 bash scripts/prepare-arch-image.sh prepare-arch-minimal /dev/mmcblk0p2 ext4
 bash scripts/prepare-arch-image.sh build-multitool-overlay work/multitool-overlay /dev/mmcblk0p2
 bash scripts/prepare-arch-image.sh validate /dev/mmcblk0p2 ext4
+# solução eMMC compatível com Multitool 2022 (base-image method)
+bash scripts/build-multitool-image.sh --base /caminho/Armbian_23.02.0-trunk_Rk322x-box_kinetic_edge_6.1.0_minimal.img
 ```
 
 ### Documentação principal
@@ -91,6 +99,7 @@ bash scripts/prepare-arch-image.sh validate /dev/mmcblk0p2 ext4
 - `CHECKLIST_BOOT_ARCH_CANARIO.md`
 - `PLANO_CARAPRETA.md`
 - `DEVICE_CONTEXT.md`
+- `MULTITOOL_2022_COMPAT.md`
 
 ---
 
@@ -131,6 +140,12 @@ Se a trilha fechar com boot estável + migração eMMC reproduzível, o CaraAzul
 - base mínima para agentes locais em terminal
 
 Essa é a proposta: **transformar sucata eletrônica em infraestrutura funcional de IA e sistemas**.
+
+## 🧪 Status dos testes de campo
+
+- O último teste gravado em eMMC exibiu **tela preta**.
+- Esse comportamento já foi incorporado ao plano técnico para correção do formato de imagem.
+- Próximo ciclo: gerar imagem no formato correto para Multitool 2022 e retestar.
 
 ---
 
