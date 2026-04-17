@@ -1,45 +1,83 @@
-# CaraAzul
+# CaraAzul 🔵
 
-> **Missão:** ressuscitar TV Box RK322x antiga com **Arch Linux ARM funcional**, pipeline reproduzível e base moderna para desenvolvimento de agentes.
+![Status](https://img.shields.io/badge/status-canary%20em%20teste-orange)
+![Platform](https://img.shields.io/badge/platform-RK322x%20(ARMv7)-blue)
+![Kernel](https://img.shields.io/badge/kernel-6.6.22--current--rockchip-1f6feb)
+![Arch](https://img.shields.io/badge/base-Arch%20Linux%20ARM-1793d1)
 
-Se os testes de boot em hardware real confirmarem estabilidade, este projeto vira uma referência prática e pública para uma classe de dispositivos considerada obsoleta.
+> **CaraPreta (governo)** inspirou o nome.  
+> **CaraAzul** é a reabilitação comunitária com base em **Arch Linux ARM** (logo azul), focada em hardware legado RK322x.
 
-## Estado atual (abril/2026)
+## 🚀 Visão do projeto
 
-- ✅ Boot chain do SD Multitool preparada com entrada `ArchLinuxARM-canary`
-- ✅ Rootfs Arch ARM minimal preparado e validado
-- ✅ Kernel RK322x `6.6.22-current-rockchip` integrado (zImage + uInitrd + DTB + módulos)
-- ✅ Pré-configuração de acesso remoto (SSH + rede + usuário `ufrb`)
-- ✅ Stack de observabilidade inicial (timer + shipper para webhook/syslog)
-- 🔬 Fase atual: **testes de boot no hardware (carapreta)**
+Ressuscitar TV Boxes antigas RK322x e transformar esse hardware em uma plataforma mínima, funcional e reproduzível para:
 
-## Objetivo técnico
+- Linux moderno (Arch ARM)
+- automação e laboratório de sistemas
+- execução de agentes em terminal (ex.: arquitetura estilo zeroclaw/hermes/picoclaw, em binário único quando possível)
 
-1. Bootar Arch Linux ARM de forma confiável no RK322x.
-2. Consolidar procedimento SD-first (canário) com rollback seguro.
-3. Migrar para eMMC somente após estabilidade comprovada.
-4. Entregar base pronta para toolchain ARMv7 (Rust/Zig) e workloads de agentes.
+Se estabilizar em produção real, este repositório vira uma referência pública para recuperação técnica de uma família de dispositivos considerada descartável.
 
-## Contexto do hardware alvo
+---
 
-- SoC: Rockchip RK322x (ARMv7 Cortex-A7)
-- RAM: ~1 GB
-- Armazenamento atual: eMMC (~7.2 GB) + SD Multitool
-- Sistema legado de origem: Armbian/Bullseye + kernel 4.4 legacy
+## 📌 Estado atual (abril/2026)
 
-Detalhes completos em: `DEVICE_CONTEXT.md`.
+- ✅ Pipeline SD-first canário estruturado
+- ✅ Rootfs Arch minimal preparado offline
+- ✅ Kernel RK322x `6.6.22-current-rockchip` integrado
+- ✅ Entrada `ArchLinuxARM-canary` adicionada no Multitool SD
+- ✅ SSH + networkd + observabilidade básica no rootfs
+- ⚠️ **eMMC flash com imagem genérica resultou em tela preta (em investigação técnica)**
 
-## Arquitetura da solução (resumo)
+> **Fase atual:** testes de boot em hardware real (`carapreta`) com foco em robustez de bootchain.
 
-- **Canário por SD (sem tocar eMMC inicialmente)**
-- Entrada de boot adicional no `extlinux.conf` do Multitool
-- Kernel/dtb/initrd do Arch em `/archboot` no SD
-- Rootfs Arch minimal preparado offline no workspace
-- Telemetria periódica para facilitar diagnóstico pós-boot
+---
 
-## Como preparar (workspace)
+## 🧠 Diagnóstico crítico atual (tela preta após flash)
 
-Script principal:
+Muito provável que o erro tenha sido **formato de imagem para eMMC**:
+
+- A imagem `.img` gerada no workspace foi **rootfs-centric** (partição Linux + conteúdo),
+- mas o boot RK322x em eMMC normalmente exige cadeia completa específica de bootloader (idbloader/u-boot/trust/offsets corretos).
+
+Resultado típico: gravação “sucesso” no Multitool, mas boot morto (sem vídeo/LED esperado).
+
+👉 Em outras palavras: **não foi falha de conceito do Arch**, foi falha de empacotamento de imagem para bootchain Rockchip no eMMC.
+
+### Próximo caminho correto
+
+1. Manter estratégia **SD canário** até boot estável.
+2. Gerar imagem **multitool-friendly para burn em eMMC**, baseada em layout de imagem RK322x válida.
+3. Só então repetir migração para eMMC.
+
+Detalhes em: `CHECKLIST_BOOT_ARCH_CANARIO.md` e `PLANO_CARAPRETA.md`.
+
+---
+
+## 🏗️ Arquitetura de trabalho
+
+### Fase 1 — Canário por SD (sem tocar eMMC)
+
+- SD com Multitool mantém entrada de recuperação
+- Entrada adicional `ArchLinuxARM-canary`
+- kernel/initrd/dtb em `/archboot`
+- rootfs Arch preparado no workspace
+
+### Fase 2 — Validação funcional
+
+- boot repetível
+- rede + ssh
+- módulos de kernel carregando corretamente
+- coleta de logs de boot
+
+### Fase 3 — Migração para eMMC
+
+- somente após estabilidade comprovada no SD
+- com rollback pronto
+
+---
+
+## 🛠️ Setup rápido (workspace)
 
 ```bash
 bash scripts/prepare-arch-image.sh prepare-arch-minimal /dev/mmcblk0p2 ext4
@@ -47,32 +85,55 @@ bash scripts/prepare-arch-image.sh build-multitool-overlay work/multitool-overla
 bash scripts/prepare-arch-image.sh validate /dev/mmcblk0p2 ext4
 ```
 
-Documentos operacionais:
+### Documentação principal
 
 - `GUIA_MULTITOOL_ARCH_RK322X.md`
 - `CHECKLIST_BOOT_ARCH_CANARIO.md`
 - `PLANO_CARAPRETA.md`
+- `DEVICE_CONTEXT.md`
 
-## Credenciais de teste da imagem canário
+---
 
-- Usuário: `ufrb`
-- Senha: `desk@456.`
-- Root: habilitado (senha definida no preparo)
+## 📡 Observabilidade e telemetria
 
-> **Atenção:** credenciais de laboratório. Trocar imediatamente após validação de boot.
+O rootfs canário já inclui:
 
-## Artefatos grandes e limites do GitHub
+- `carazul-logship.service`
+- `carazul-logship.timer`
+- `/etc/caraazul/telemetry.env`
 
-Este repositório **não versiona imagens `.img` grandes** por limite de tamanho no GitHub.
+Permite envio de logs para webhook/syslog remoto após subir rede, para lapidação contínua de boot/perf.
 
-Exemplo de artefato local (não commitado):
-- `images/ArchLinuxARM-rk322x-canary-6.6.22-minimal.img` (~3.0G)
+---
 
-O que fica no Git:
-- scripts, documentação, checklist, plano, hashes e fluxo reproduzível.
+## 🔐 Segurança / credenciais de laboratório
 
-## Resultado esperado da fase de testes
+Este projeto usa credenciais de teste em ambiente de validação controlado.  
+**Não reutilize em produção.** Troque credenciais imediatamente no primeiro boot estável.
 
-Se os boots canário passarem (rede, shell, reinício, logs), o projeto entra na fase de migração para eMMC.
+---
 
-Isso pode transformar o CaraAzul em uma trilha prática para recuperar e modernizar RK322x com Arch Linux ARM — algo raro e de alto impacto para hardware legado.
+## 📦 Artefatos grandes e limites do GitHub
+
+Imagens `.img` grandes **não são versionadas** no GitHub.
+
+- política: `images/README.md`
+- este repo versiona scripts + docs + fluxo reproduzível
+
+---
+
+## 🌍 Impacto esperado
+
+Se a trilha fechar com boot estável + migração eMMC reproduzível, o CaraAzul estabelece um caminho público e prático para:
+
+- reuso de TV Boxes antigas
+- laboratório Linux de baixo custo
+- base mínima para agentes locais em terminal
+
+Essa é a proposta: **transformar sucata eletrônica em infraestrutura funcional de IA e sistemas**.
+
+---
+
+## 🏷️ Tópicos sugeridos para o GitHub (Settings → Topics)
+
+`archlinux` `archlinuxarm` `rk322x` `rockchip` `tv-box` `armv7` `embedded-linux` `u-boot` `multitool` `armbian` `legacy-hardware` `self-hosted-ai` `edge-computing`
