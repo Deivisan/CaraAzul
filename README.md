@@ -1,7 +1,7 @@
 # CaraAzul 🔵
 
 <p align="center">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Archlinux-icon-crystal-64.svg" alt="Arch Linux Logo" width="88" />
+  <img src="https://upload.wikimedia.org/wikipedia/commons/7/74/Arch_Linux_logo.svg" alt="Arch Linux Logo" width="110" />
 </p>
 
 ![Status](https://img.shields.io/badge/status-canary%20em%20teste-orange)
@@ -93,6 +93,15 @@ bash scripts/prepare-arch-image.sh validate /dev/mmcblk0p2 ext4
 bash scripts/build-multitool-image.sh --base /caminho/Armbian_23.02.0-trunk_Rk322x-box_kinetic_edge_6.1.0_minimal.img
 ```
 
+### Build final pronto para teste (gerado)
+
+Arquivo gerado neste ciclo:
+
+- `images/CaraAzul-rk322x-multitool2022-canary-r1.img`
+- SHA256: `9e87ef10a03659cbe14516b56dc55c9abac3b60c68fddd8878322b43f2413437`
+
+Esse é o arquivo que você deve mover para `images/` do SD do Multitool.
+
 ### Documentação principal
 
 - `GUIA_MULTITOOL_ARCH_RK322X.md`
@@ -146,7 +155,18 @@ Essa é a proposta: **transformar sucata eletrônica em infraestrutura funcional
 
 - O último teste gravado em eMMC exibiu **tela preta**.
 - Esse comportamento já foi incorporado ao plano técnico para correção do formato de imagem.
-- Próximo ciclo: gerar imagem no formato correto para Multitool 2022 e retestar.
+- Próximo ciclo: retestar com `CaraAzul-rk322x-multitool2022-canary-r1.img`.
+
+## ▶️ Qual opção escolher no menu do Multitool
+
+Para **testar boot em eMMC com a imagem nova**:
+
+1. Inserir SD Multitool com o arquivo `.img` em `/images`
+2. No menu do Multitool, escolher **`Burn image to flash`**
+3. Selecionar `CaraAzul-rk322x-multitool2022-canary-r1.img`
+4. Aguardar término e reiniciar sem interromper alimentação
+
+Se quiser apenas testar sem mexer no eMMC, manter o fluxo pelo item `ArchLinuxARM-canary` no extlinux do SD.
 
 ---
 

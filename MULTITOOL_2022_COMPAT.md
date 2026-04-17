@@ -31,6 +31,10 @@ Este repositório passa a adotar geração de imagem eMMC por compatibilidade de
 Script alvo:
 - `scripts/build-multitool-image.sh`
 
+Exemplo real gerado:
+- `images/CaraAzul-rk322x-multitool2022-canary-r1.img`
+- SHA256: `9e87ef10a03659cbe14516b56dc55c9abac3b60c68fddd8878322b43f2413437`
+
 ## Checklist mínimo antes de burn
 
 - `fdisk -l imagem.img` com partições esperadas

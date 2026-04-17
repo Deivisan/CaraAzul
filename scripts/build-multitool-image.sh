@@ -11,6 +11,7 @@ OUT_DIR="${REPO_ROOT}/images"
 
 BASE_IMG=""
 OUT_IMG="${OUT_DIR}/CaraAzul-rk322x-multitool2022-canary.img"
+GROW_TO="4G"
 
 find_root_partition() {
   local loop_dev="$1"
@@ -44,7 +45,7 @@ find_root_partition() {
 usage() {
   cat <<EOF
 Uso:
-  $0 --base /caminho/base-rk322x.img [--out /caminho/saida.img]
+  $0 --base /caminho/base-rk322x.img [--out /caminho/saida.img] [--grow-to 4G]
 
 Descrição:
   Gera imagem para eMMC preservando layout/bootchain de uma imagem base RK322x
@@ -65,6 +66,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --out)
       OUT_IMG="$2"
+      shift 2
+      ;;
+    --grow-to)
+      GROW_TO="$2"
       shift 2
       ;;
     -h|--help)
@@ -100,9 +105,21 @@ mkdir -p "${OUT_DIR}" "${WORK_DIR}/mnt-base"
 echo "[1/7] Copiando imagem base..."
 cp -f "${BASE_IMG}" "${OUT_IMG}"
 
+echo "[1.5/7] Ajustando tamanho da imagem para ${GROW_TO}..."
+sudo truncate -s "${GROW_TO}" "${OUT_IMG}"
+
 echo "[2/7] Conectando loop device..."
 sudo losetup -fP "${OUT_IMG}"
 LOOP_DEV="$(sudo losetup -j "${OUT_IMG}" | awk -F: '{print $1}')"
+
+echo "[2.5/7] Expandindo partição root para ocupar imagem..."
+ROOT_PART_NUM="$(lsblk -ln -o NAME,FSTYPE "${LOOP_DEV}" | awk '$2 ~ /ext[234]/ {print $1}' | head -n1 | sed -E 's/.*p([0-9]+)$/\1/')"
+if [[ -z "${ROOT_PART_NUM}" ]]; then
+  ROOT_PART_NUM="1"
+fi
+sudo parted -s "${OUT_IMG}" "resizepart" "${ROOT_PART_NUM}" "100%"
+sudo partprobe "${LOOP_DEV}" || true
+sleep 1
 
 cleanup() {
   set +e
@@ -117,6 +134,10 @@ ROOT_PART="$(find_root_partition "${LOOP_DEV}")" || {
 }
 
 echo "[3/7] Montando partição root da imagem base: ${ROOT_PART}"
+echo "[3.5/7] Crescendo filesystem ext4 da partição root..."
+sudo e2fsck -fy "${ROOT_PART}" >/dev/null || true
+sudo resize2fs "${ROOT_PART}" >/dev/null
+
 sudo mount "${ROOT_PART}" "${WORK_DIR}/mnt-base"
 
 echo "[4/7] Limpando rootfs da base (preservando lost+found)..."
